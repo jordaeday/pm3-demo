@@ -105,6 +105,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                             heartbeat_count += 1;
                         } else {
                             let _ = writeln!(display, "[{:#04X}] seq={}, data={:02X?}", frame.msg_type, frame.seq, frame.data);
+                            read_count += 1;
                         }
                     }
 
@@ -114,7 +115,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                         display.drain(..drain_to);
                     }
 
-                    read_count += 1;
                     let snapshot = display.clone();
                     let weak_inner = weak.clone();
                     let rc = read_count;
