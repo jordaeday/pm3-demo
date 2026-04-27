@@ -74,9 +74,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         set_status_from_thread(&weak, format!("listening on {}", port_path));
 
+        // enable application level frame parsing 
         let enable_iso = build_frame(0x01, 0xE4, &[0x00, 0x06, 0x01, 0x01]);
         if let Err(e) = port.write_all(&enable_iso) {
             set_status_from_thread(&weak, format!("failed to enable ISO: {}", e));
+            return;
+        }
+
+        let enable_ultralight = build_frame(0x02, 0xE4, &[0x00, 0x0A, 0x01, 0x01]);
+        if let Err(e) = port.write_all(&enable_ultralight) {
+            set_status_from_thread(&weak, format!("failed to enable Ultralight: {}", e));
             return;
         }
 
