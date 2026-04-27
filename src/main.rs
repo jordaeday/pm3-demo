@@ -3,7 +3,7 @@ mod frame;
 use std::{error::Error, time::Duration, thread, fmt::Write};
 
 use serial2::SerialPort;
-use frame::{try_parse_frame};
+use frame::{try_parse_frame, decode_log};
 
 slint::include_modules!();
 
@@ -91,6 +91,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut buf = [0u8; 256];
         let mut acc: Vec<u8> = Vec::new();
         let mut display = String::new();
+        let mut log_display = String::new();
 
         // CardRelease frame — precomputed.
         //   start  seq  flags  type   len_hi  len_lo  hdr_crc
@@ -112,6 +113,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                             heartbeat_count += 1;
                         } else {
                             let _ = writeln!(display, "[{:#04X}] seq={}, data={:02X?}", frame.msg_type, frame.seq, frame.data);
+                            if frame.msg_type == 0xED {
+                                if let Some(log_msg) = decode_log(&frame.data) {
+                                    let _ = writeln!(log_display, "{}", log_msg);
+                                }
+                            }
                             read_count += 1;
                         }
                     }
@@ -121,14 +127,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                         let drain_to = display.len() - MAX_DISPLAY;
                         display.drain(..drain_to);
                     }
+                    if log_display.len() > MAX_DISPLAY {
+                        let drain_to = log_display.len() - MAX_DISPLAY;
+                        log_display.drain(..drain_to);
+                    }
 
                     let snapshot = display.clone();
+                    let log_snapshot = log_display.clone();
                     let weak_inner = weak.clone();
                     let rc = read_count;
                     let hc = heartbeat_count;
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(main_window) = weak_inner.upgrade() {
                             main_window.set_raw_data(slint::SharedString::from(snapshot));
+                            main_window.set_log_data(slint::SharedString::from(log_snapshot));
                             main_window.set_read_count(rc);
                             main_window.set_heartbeat_count(hc);
                         }

@@ -11,6 +11,20 @@ pub struct Frame {
   pub data: Vec<u8>,
 }
 
+pub fn decode_log(data: &[u8]) -> Option<String> {
+    if data.is_empty() { return None; }
+    let level = match data[0] {
+        1 => "INFO",
+        2 => "WARN",
+        3 => "ERROR",
+        _ => "?",
+    };
+    let msg_bytes = &data[1..];
+    let end = msg_bytes.iter().position(|&b| b == 0).unwrap_or(msg_bytes.len());
+    let msg = String::from_utf8_lossy(&msg_bytes[..end]);
+    Some(format!("[{}] {}", level, msg))
+}
+
 pub fn try_parse_frame(buf: &mut Vec<u8>) -> Option<Frame> {
   // look for start byte (0xBC)
   if let Some(start) = buf.iter().position(|&b| b == 0xBC) {

@@ -7,6 +7,7 @@ export component AppWindow inherits Window {
 
     // The ONLY thing this UI does: display a string of bytes from Rust.
     in property <string> raw-data: "Waiting for data...";
+    in property <string> log-data: "";
     in property <string> status: "starting up...";
     in property <int> read-count: 0;
     in property <int> heartbeat-count: 0;
@@ -30,11 +31,26 @@ export component AppWindow inherits Window {
 
         // The actual byte dump. ScrollView so it scrolls when the buffer fills up.
         ScrollView {
+            vertical-stretch: 1;
+            viewport-y: min(0px, self.height - self.viewport-height);
             Text {
-                width: parent.width; // make the text wrap to the width of the ScrollView
+                width: parent.width;
                 text: root.raw-data;
                 font-family: "monospace";
                 font-size: 14px;
+                wrap: word-wrap;
+            }
+        }
+
+        // Decoded log messages from 0xED frames.
+        ScrollView {
+            height: 150px;
+            Text {
+                width: parent.width;
+                text: root.log-data == "" ? "No log messages yet." : root.log-data;
+                font-family: "monospace";
+                font-size: 13px;
+                color: #4aaa88;
                 wrap: word-wrap;
             }
         }
