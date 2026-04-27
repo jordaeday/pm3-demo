@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use crc::{Crc, CRC_8_MAXIM_DOW, CRC_32_ISO_HDLC};
 
 const CRC8: Crc<u8> = Crc::<u8>::new(&CRC_8_MAXIM_DOW);
@@ -9,6 +10,54 @@ pub struct Frame {
   pub flags: u8,
   pub msg_type: u8,
   pub data: Vec<u8>,
+}
+
+pub fn frame_type_name(msg_type: u8) -> &'static str {
+    match msg_type {
+        0x02 => "Version",
+        0x03 => "VersionReply",
+        0x04 => "Status",
+        0x05 => "StatusReply",
+        0x07 => "Heartbeat",
+        0x0F => "Startup",
+        0x10 => "Reset",
+        0x11 => "ResetReply",
+        0x20 => "LEDs",
+        0x22 => "Buzzer",
+        0x32 => "CardRelease",
+        0x46 => "AbortCardHandling",
+        0xB1 => "ISORead",
+        0xB3 => "ISOCardReleased",
+        0xB4 => "APDUProx",
+        0xB5 => "APDUProxReply",
+        0xB9 => "DESFireRead",
+        0xBB => "DESFireCardRemoved",
+        0xBC => "DESFireCommand",
+        0xBD => "DESFireCommandReply",
+        0xBE => "UnhandledCard",
+        0xD0 => "EMV",
+        0xD1 => "EMVStatus",
+        0xE4 => "ProxCardFunction",
+        0xE5 => "ProxCardFunctionReply",
+        0xED => "Log",
+        _ => "Unknown",
+    }
+}
+
+pub fn decode_version_reply(data: &[u8]) -> Option<String> {
+    let labels = ["Device ID", "Firmware", "Working Dir"];
+    let mut result = String::new();
+    let mut i = 0;
+    for label in &labels {
+        if i >= data.len() { break; }
+        let len = data[i] as usize;
+        i += 1;
+        if i + len > data.len() { break; }
+        let s = String::from_utf8_lossy(&data[i..i + len]);
+        let _ = writeln!(result, "{}: {}", label, s);
+        i += len;
+    }
+    if result.is_empty() { None } else { Some(result) }
 }
 
 pub fn decode_log(data: &[u8]) -> Option<String> {
