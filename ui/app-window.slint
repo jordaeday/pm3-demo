@@ -1,17 +1,41 @@
-import { Button, VerticalBox } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export component AppWindow inherits Window {
-    in-out property <int> counter: 42;
-    callback request-increase-value();
-    VerticalBox {
+    title: "PM3 NFC raw bytes";
+    // preferred-width: 800px;
+    // preferred-height: 480px;
+
+    // The ONLY thing this UI does: display a string of bytes from Rust.
+    in property <string> raw-data: "Waiting for data...";
+    in property <string> status: "starting up...";
+    in property <int> read-count: 0;
+    in property <int> heartbeat-count: 0;
+
+    VerticalLayout {
+        padding: 15px;
+        spacing: 8px;
+
+        // Status line at the top.
         Text {
-            text: "Counter: \{root.counter}";
+            text: root.status;
+            font-size: 14px;
+            color: #888;
         }
 
-        Button {
-            text: "Increase value";
-            clicked => {
-                root.request-increase-value();
+        Text {
+            text: "reads: " + root.read-count + " + " + root.heartbeat-count + " hidden heartbeats";
+            font-size: 14px;
+            color: #888;
+        }
+
+        // The actual byte dump. ScrollView so it scrolls when the buffer fills up.
+        ScrollView {
+            Text {
+                width: parent.width; // make the text wrap to the width of the ScrollView
+                text: root.raw-data;
+                font-family: "monospace";
+                font-size: 14px;
+                wrap: word-wrap;
             }
         }
     }
