@@ -89,6 +89,14 @@ pub fn decode_unhandled_card(data: &[u8]) -> Option<String> {
         uid_len, uid_str, atqa[0], atqa[1], sak))
 }
 
+pub fn decode_ultralight_read(data: &[u8]) -> Option<String> {
+    if data.is_empty() { return None; }
+    let ascii: String = data.iter().map(|&b| {
+        if b >= 0x20 && b < 0x7F { b as char } else { '.' }
+    }).collect();
+    Some(format!("UltralightRead: {}", ascii))
+}
+
 pub fn decode_log(data: &[u8]) -> Option<String> {
     if data.is_empty() { return None; }
     let level = match data[0] {

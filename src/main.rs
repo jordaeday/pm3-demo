@@ -3,7 +3,7 @@ mod frame;
 use std::{error::Error, time::Duration, thread, fmt::Write, fs::File, io::Write as IoWrite};
 
 use serial2::SerialPort;
-use frame::{try_parse_frame, decode_log, decode_version_reply, decode_unhandled_card, frame_type_name};
+use frame::{try_parse_frame, decode_log, decode_version_reply, decode_unhandled_card, decode_ultralight_read, frame_type_name};
 
 slint::include_modules!();
 
@@ -28,6 +28,13 @@ fn build_frame(seq: u8, msg_type: u8, data: &[u8]) -> Vec<u8> {
         frame.extend_from_slice(&crc.to_le_bytes());
     }
     frame
+}
+
+fn request_tag_info(port: &mut SerialPort, weak: &slint::Weak<AppWindow>, seq: u8) -> Result<(), Box<dyn Error>> {
+    let get_tag_info = build_frame(seq, 0xD4, &[0x02, 0x00, 0x87]);
+    port.write_all(&get_tag_info)?;
+    set_status_from_thread(weak, "requested tag info".into());
+    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -161,6 +168,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                             0xBE => {
                                 if let Some(card_info) = decode_unhandled_card(&frame.data) {
                                     let _ = writeln!(log_display, "{}", card_info);
+                                }
+                            }
+                            0xD5 => {
+                                if frame.flags == 0x00 {
+                                    if let Err(e) = request_tag_info(&mut port, &weak, frame.seq) {
+                                        set_status_from_thread(&weak, format!("failed to request tag info: {}", e));
+                                    }
+                                } else {
+                                    if let Some(ul_info) = decode_ultralight_read(&frame.data) {
+                                        let _ = writeln!(log_display, "{}", ul_info);
+                                    }
                                 }
                             }
                             _ => {}
