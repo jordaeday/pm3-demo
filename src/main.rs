@@ -1,9 +1,9 @@
 mod frame;
 
-use std::{error::Error, time::Duration, thread, fmt::Write, fs::File, io::BufWriter, io::Write as IoWrite};
+use std::{error::Error, time::Duration, thread, fmt::Write, fs::File, io::Write as IoWrite};
 
 use serial2::SerialPort;
-use frame::{try_parse_frame, decode_log, decode_version_reply, frame_type_name};
+use frame::{try_parse_frame, decode_log, decode_version_reply, decode_unhandled_card, frame_type_name};
 
 slint::include_modules!();
 
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let capture_path = std::env::args()
         .nth(2)
-        .unwrap_or_else(|| "capture.bin".to_string());
+        .unwrap_or_else(|| "/tmp/capture.bin".to_string());
 
     let baud = 115_200;
     
@@ -61,10 +61,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // reader thread
     thread::spawn(move || {
-        let capture_file = File::create(&capture_path)
-            .map(BufWriter::new)
-            .ok();
-        let mut capture = capture_file;
+        let mut capture = match File::create(&capture_path) {
+            Ok(f) => {
+                set_status_from_thread(&weak, format!("capturing to {}", capture_path));
+                Some(f)
+            }
+            Err(e) => {
+                set_status_from_thread(&weak, format!("capture file failed: {}", e));
+                None
+            }
+        };
         let mut port: SerialPort = match SerialPort::open(&port_path, baud) {
             Ok(p) => p,
             Err(e) => {
@@ -89,9 +95,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             return;
         }
 
-        let enable_ultralight = build_frame(0x02, 0xE4, &[0x00, 0x0A, 0x01, 0x01]);
-        if let Err(e) = port.write_all(&enable_ultralight) {
-            set_status_from_thread(&weak, format!("failed to enable Ultralight: {}", e));
+        // enable ultralight parsing (for card info frames)
+        let enable_ul = build_frame(0x02, 0xE4, &[0x00, 0x0a, 0x01, 0x02]);
+        if let Err(e) = port.write_all(&enable_ul) {
+            set_status_from_thread(&weak, format!("failed to enable ultralight: {}", e));
             return;
         }
 
@@ -122,6 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(n) => {
                     if let Some(ref mut f) = capture {
                         let _ = f.write_all(&buf[..n]);
+                        let _ = f.flush();
                     }
                     acc.extend_from_slice(&buf[..n]);
 
@@ -131,8 +139,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                             continue;
                         }
 
-                        let _ = writeln!(display, "[{}] seq={}, data={:02X?}",
-                            frame_type_name(frame.msg_type), frame.seq, frame.data);
+                        let _ = writeln!(display, "[{} ({:#04X})] seq={}, data={:02X?}",
+                            frame_type_name(frame.msg_type), frame.msg_type, frame.seq, frame.data);
 
                         match frame.msg_type {
                             0x03 => {
@@ -148,6 +156,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                             0xED => {
                                 if let Some(log_msg) = decode_log(&frame.data) {
                                     let _ = writeln!(log_display, "{}", log_msg);
+                                }
+                            }
+                            0xBE => {
+                                if let Some(card_info) = decode_unhandled_card(&frame.data) {
+                                    let _ = writeln!(log_display, "{}", card_info);
                                 }
                             }
                             _ => {}

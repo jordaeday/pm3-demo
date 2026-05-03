@@ -39,7 +39,7 @@ export component AppWindow inherits Window {
         // The actual byte dump. ScrollView so it scrolls when the buffer fills up.
         ScrollView {
             vertical-stretch: 1;
-            viewport-y: min(0px, self.height - self.viewport-height);
+            viewport-y: min(150px, self.height - self.viewport-height);
             Text {
                 width: parent.width;
                 text: root.raw-data;

@@ -37,6 +37,7 @@ pub fn frame_type_name(msg_type: u8) -> &'static str {
         0xBE => "UnhandledCard",
         0xD0 => "EMV",
         0xD1 => "EMVStatus",
+        0xD5 => "UltralightRead",
         0xE4 => "ProxCardFunction",
         0xE5 => "ProxCardFunctionReply",
         0xED => "Log",
@@ -53,11 +54,39 @@ pub fn decode_version_reply(data: &[u8]) -> Option<String> {
         let len = data[i] as usize;
         i += 1;
         if i + len > data.len() { break; }
-        let s = String::from_utf8_lossy(&data[i..i + len]);
-        let _ = writeln!(result, "{}: {}", label, s);
+        let bytes = &data[i..i + len];
+        let value = if bytes.iter().all(|&b| b >= 0x20 && b < 0x7F) {
+            String::from_utf8_lossy(bytes).into_owned()
+        } else {
+            bytes.iter().map(|b| format!("{:02X}", b)).collect::<Vec<_>>().join(":")
+        };
+        let _ = writeln!(result, "{}: {}", label, value);
         i += len;
     }
     if result.is_empty() { None } else { Some(result) }
+}
+
+pub fn decode_unhandled_card(data: &[u8]) -> Option<String> {
+    // payload ends: [UID bytes][ATQA: 2 bytes][SAK: 1 byte]
+    if data.len() < 3 { return None; }
+
+    let atqa = &data[data.len() - 3..data.len() - 1];
+    let sak = data[data.len() - 1];
+
+    let uid_len = match (atqa[0] >> 6) & 0x03 {
+        0 => 4,
+        1 => 7,
+        2 => 10,
+        _ => return None,
+    };
+
+    if data.len() < 3 + uid_len { return None; }
+
+    let uid = &data[data.len() - 3 - uid_len..data.len() - 3];
+    let uid_str = uid.iter().map(|b| format!("{:02X}", b)).collect::<Vec<_>>().join(":");
+
+    Some(format!("UID ({}B): {}  ATQA: {:02X} {:02X}  SAK: {:02X}",
+        uid_len, uid_str, atqa[0], atqa[1], sak))
 }
 
 pub fn decode_log(data: &[u8]) -> Option<String> {
